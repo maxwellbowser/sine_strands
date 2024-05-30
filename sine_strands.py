@@ -5,8 +5,7 @@ from tkinter import ttk
 from tkinter import filedialog as fd
 from tkinter.messagebox import showinfo
 
-import sys
-import os
+import os, sys, subprocess
 from pathlib import Path
 import time
 import pandas as pd
@@ -16,6 +15,7 @@ import matplotlib.pyplot as plt
 import re
 import json
 from scipy.ndimage import gaussian_filter
+from scipy.stats import linregress
 
 pd.options.mode.chained_assignment = None
 # This script will take DAT Files as input, separate out the frequencies programmed and
@@ -257,7 +257,7 @@ def main():
     filtering_Fin_checkbox.grid(column=0, row=2, sticky="w", padx=10, pady=10)
 
     filtering_Lin_checkbox = ttk.Checkbutton(
-        frame, text="Filtering (Fin)", variable=filtering_var_Lin
+        frame, text="Filtering (Lin)", variable=filtering_var_Lin
     )
     filtering_Lin_checkbox.grid(column=0, row=3, sticky="w", padx=10, pady=10)
 
@@ -274,6 +274,7 @@ def main():
     # Create and place the button to open the files
     create_button = ttk.Button(frame, text="Open Files", command=select_files)
     create_button.grid(column=1, row=3, columnspan=2, padx=10, pady=10)
+    root.bind("<Return>", select_files)
 
     # Run the tkinter main loop
     root.mainloop()
@@ -295,7 +296,7 @@ def main():
 
     # This is used to keep track if any files didn't have a cell area
     no_cross_area = False
-    cross_errors = {"Non-Scaled Files:": []}
+    cross_errors = {"Non-Scaled Files:": [], "Baselined_Files": []}
 
     # Keeping track of cell forces, for each file
     force_dict = {"Avg. Basal Force": [], "Filename": []}
@@ -315,7 +316,8 @@ def main():
         matches = re.findall(pattern, filename[-7:-4])
 
         # If there are 3 digits in a row at the end of the string, make that the SL
-        if len(matches) == 1:
+        # Sometimes the 100 is the active %, SL is never 100
+        if len(matches) == 1 and matches[0] != "100":
             SL = matches[0]
             SL = int(SL)
 
@@ -509,13 +511,27 @@ def main():
             float(start) * scaling_factor
         )  # Since the setup takes 200ms to start going
         spacing = 10 * scaling_factor
+        try:
+            # This is the average first 200 values of the force, before the sinsusoidal perturbation starts...
+            first_force = (
+                fiber_data["Fin"]
+                .iloc[int(start) : int(start) + 200]
+                .astype("float")
+                .mean()
+            ) / cross_area
+            force_dict["Avg. Basal Force"].append(first_force)
+            force_dict["Filename"].append(filename[:-4])
 
-        # This is the average first 200 values of the force, before the sinsusoidal perturbation starts...
-        first_force = (
-            fiber_data["Fin"].iloc[int(start) : int(start) + 200].astype("float").mean()
-        )
-        force_dict["Avg. Basal Force"].append(first_force)
-        force_dict["Filename"].append(filename[:-4])
+        except TypeError:
+            # This is the average first 200 values of the force, before the sinsusoidal perturbation starts...
+            first_force = (
+                fiber_data["Fin"]
+                .iloc[int(start) : int(start) + 200]
+                .astype("float")
+                .mean()
+            )
+            force_dict["Avg. Basal Force"].append(first_force)
+            force_dict["Filename"].append(filename[:-4])
 
         for freq in range(0, len(combined_timing_df)):
             end = int(
@@ -572,36 +588,59 @@ def main():
                 )
 
             # Fitting sine curves
-            fin_res = fit_sin(x_data, full_data_df.Fin)
-            lin_res = fit_sin(x_data, full_data_df.Lin)
+            try:
+                fin_res = fit_sin(x_data, full_data_df.Fin)
+                lin_res = fit_sin(x_data, full_data_df.Lin)
 
-            # Code for saving plots of every freqency and the overlaid Sine fit
-            # adds a lot of time and slows down everything
-            """
-            plt.plot(x_data, full_data_df.Fin)
-            plt.plot(
-                x_data,
-                fin_res["fitfunc"](x_data),
-                "r-",
-                label="y fit curve",
-                linewidth=2,
-            )
+            except RuntimeError:  # If curve can not be fit
 
-            plt.savefig(f"fin_{combined_timing_df.iloc[freq, 0]}.png")
-            plt.close()
+                # Fit straight line to sinusoidal data (Lin should never have drift)
+                Fin_line = linregress(x_data, full_data_df.Fin)
+                y_vals = Fin_line.intercept + Fin_line.slope * x_data
 
-            plt.plot(x_data, full_data_df.Lin)
-            plt.plot(
-                x_data,
-                lin_res["fitfunc"](x_data),
-                "r-",
-                label="y fit curve",
-                linewidth=2,
-            )
+                # Subtract off baseline
+                baselined_Fin = full_data_df.Fin - y_vals
 
-            plt.savefig(f"lin_{combined_timing_df.iloc[freq, 0]}.png")
-            plt.close()
-            """
+                # Try to refit
+                fin_res = fit_sin(x_data, baselined_Fin)
+                lin_res = fit_sin(x_data, full_data_df.Lin)
+
+                baselined_files = True
+                cross_errors["Baselined_Files"].append(
+                    filename[:-4] + f"_{combined_timing_df.iloc[freq, 0]}Hz"
+                )
+                # Code for saving plots of every freqency and the overlaid Sine fit
+                # adds a lot of time and slows down everything
+                # Should show changes between pre and post baselined fields
+                fig, axs = plt.subplots(2)
+                plt.plot(x_data, full_data_df.Fin)
+                fig.suptitle("Fin Pre vs Post Baseline")
+
+                # Plot OG forces & baseline on plot 1
+                axs[0].plot(x_data, full_data_df.Fin, label="Fin")
+                axs[0].plot(x_data, y_vals, label="Baseline")
+                axs[0].title.set_text("Pre-Baseline")
+
+                axs[1].clear()
+                # Plot adjusted forces and new fit
+                axs[1].plot(
+                    x_data,
+                    baselined_Fin,
+                )
+                axs[1].plot(
+                    x_data,
+                    fin_res["fitfunc"](x_data),
+                    "r-",
+                    label="Fit Sine-wave",
+                    linewidth=2,
+                )
+                axs[1].title.set_text("Post-Baseline")
+
+                fig.legend()
+                fig.tight_layout()
+
+                fig.savefig(f"fin_{combined_timing_df.iloc[freq, 0]}.png")
+                plt.close()
 
             # Try to scale by the cell's cross-sectional area, unless there is none found, then return the raw amplitude of force
             try:
@@ -635,9 +674,12 @@ def main():
         # os.chdir("../")
         summary_df = pd.DataFrame.from_dict(outputs)
 
+        # if the concatenating df already exists, then add to it
         if "concat_df" in locals():
-            # 1 mN/mm2 = 1 kPa
-            adding_df = summary_df.loc[:, ["Freq (Hz)", "Vm (kPa)", "Em (kPa)"]]
+
+            adding_df = summary_df.loc[
+                :, ["Freq (Hz)", "Vm (kPa)", "Em (kPa)"]
+            ]  # 1 mN/mm2 = 1 kPa
 
             # Adding Filename
             adding_df.insert(
@@ -647,7 +689,7 @@ def main():
                 allow_duplicates=True,
             )
 
-            # Adding HeartSample (for MATLAB)
+            # Adding HeartSample/MouseID (for MATLAB)
             adding_df.insert(
                 0,
                 "HeartSample",
@@ -675,11 +717,6 @@ def main():
             # Adding pCa (for MATLAB)
             # !! Skeletal are all 76 !!
             # pCa, relaxed
-            # 76 = 5.87 76% activating free ca is 1.3575
-            # 78 = 5.82 78% free Ca is 1.512
-            # relaxed long is nothing
-            # relaxed short is the useful one
-            # Relaxed = pCa 9
             adding_df.insert(
                 0,
                 "pCa",
@@ -697,8 +734,10 @@ def main():
 
             concat_df = pd.concat([concat_df, adding_df])
 
+        # Otherwise, make the concatenating df
         else:
-            # Making first set of data for the full data
+
+            # init concat_df
             concat_df = summary_df.loc[:, ["Freq (Hz)", "Vm (kPa)", "Em (kPa)"]]
             # Adding Filename
             concat_df.insert(
@@ -792,7 +831,7 @@ def main():
         sys.exit()
 
     # Saving filenames of files that didn't get scaled, if any exist
-    if no_cross_area:
+    if no_cross_area or baselined_files:
         with open(f"SineStrands_output.txt", "w") as f:
             f.write(json.dumps(cross_errors, indent=4))
 
@@ -803,7 +842,13 @@ def main():
 
     print("All Done!")
     folder = os.getcwd()
-    os.startfile(folder)
+
+    if sys.platform == "win32":
+        os.startfile(folder)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, folder])
+
     sys.exit()
 
 
