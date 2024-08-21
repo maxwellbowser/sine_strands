@@ -25,6 +25,9 @@ pd.options.mode.chained_assignment = None
 # Although there may be some slip-ups, Actual refers to what the sinusoidal machine is doing
 # and Calc refers to the calcuated values for waves
 
+# Fin = Force transducer Measurements
+# Lin = Motor arm Movements
+
 
 def three_sin_calc(Hz_list, sampling_rate):
     actual_timing = []
@@ -88,12 +91,13 @@ def fit_sin(tt, yy):
     guess = numpy.array([guess_amp, 2.0 * numpy.pi * guess_freq, 0.0, guess_offset])
 
     def sinfunc(t, A, w, p, c):
-        # This is suspicious because the formula should be:
+        # This is suspicious i thought because the formula should be:
         # A * numpy.sin(w * (t + p)) + c
         # but when I do that, the curve does not fit to the data
         return A * numpy.sin(w * t + p) + c
 
     popt, pcov = optimize.curve_fit(sinfunc, tt, yy, p0=guess, maxfev=2000)
+
     A, w, p, c = popt
     f = w / (2.0 * numpy.pi)
     fitfunc = lambda t: A * numpy.sin(w * t + p) + c
@@ -118,7 +122,49 @@ def main():
 
     """
 
-    def select_files():
+    def on_closing():
+        root.destroy()
+        sys.exit()
+
+    # Function to select a new calibration file
+    def select_calibration_file():
+
+        calibration_filepath = fd.askopenfilename(
+            title="Select Calibration File", filetypes=[("CSV Files", "*.csv")]
+        )
+
+        # If a file is selected,
+        if calibration_filepath:
+            with open(settings_path, "w") as f:
+                json.dump(
+                    {"calibration_file": calibration_filepath}, f
+                )  # save filepath to settings json
+
+            update_calibration_status(calibration_filepath)  # update text in GUI
+
+    # Delete the settings file containing the calibration filepath
+    def delete_calibration_file():
+        if os.path.exists(settings_path):
+            os.remove(settings_path)
+            update_calibration_status(False)
+
+    # Update the calibration status tkinter label
+    def update_calibration_status(file_path):
+        global is_calibrated
+
+        if file_path:
+            calibration_status.set(f"Calibration File: {os.path.basename(file_path)}")
+            is_calibrated = True
+
+            calibration_file["calibration_file"] = (
+                file_path  # Setting the working var calibration_file to the new selected filepath
+            )
+
+        else:
+            calibration_status.set("No Calibration File Selected")
+            is_calibrated = False
+
+    def select_files(event=None):
         filetypes = (("All Files", "*.*"),)
 
         global filepath
@@ -130,6 +176,7 @@ def main():
         root.destroy()
 
     filtering_amount = 25
+    settings_path = "SineStrands-Settings.json"
 
     # The values of pCa for Relax and Active were given to me by Gerrie, may change in the future
     # Just directly from our Excel sheet
@@ -225,6 +272,22 @@ def main():
         "10": 7.321,
     }
 
+    # If the calibration file has been selected before,
+    if os.path.exists(settings_path):
+
+        global calibration_file
+
+        f = open(settings_path)
+        calibration_file = json.load(
+            f
+        )  # reading existing setting w/ calibration filepath
+        f.close()  # Now we're able to delete the settings file
+
+        is_calibrated = True
+
+    else:
+        update_calibration_status(False)
+
     # Gui Creation:
 
     # Create the main window
@@ -241,6 +304,7 @@ def main():
     plots_var = tk.BooleanVar(value=False)
     folder_name = tk.StringVar()
     filtering_strength = tk.IntVar(value=filtering_amount)
+    calibration_status = tk.StringVar()
 
     # Create and place the label for folder name
     folder_name_label = ttk.Label(frame, text="Folder Name:")
@@ -250,19 +314,37 @@ def main():
     folder_name_entry = tk.Entry(frame, textvariable=folder_name)
     folder_name_entry.grid(column=1, row=0, padx=10, pady=10)
 
+    update_calibration_status(
+        calibration_file.get("calibration_file") if is_calibrated else None
+    )
+
+    calibration_label = ttk.Label(frame, textvariable=calibration_status)
+    calibration_label.grid(column=0, row=2, columnspan=2, padx=10, pady=10)
+    calibration_label.config(font=("Segoe UI", 9, "bold"))
+
+    select_calibration_button = ttk.Button(
+        frame, text="Select", command=select_calibration_file
+    )
+    select_calibration_button.grid(column=0, row=3, padx=10, pady=10)
+
+    delete_calibration_button = ttk.Button(
+        frame, text="Delete", command=delete_calibration_file
+    )
+    delete_calibration_button.grid(column=1, row=3, padx=10, pady=10)
+
     # Create and place the checkbox for enabling filtering
     filtering_Fin_checkbox = ttk.Checkbutton(
         frame, text="Filtering (Fin)", variable=filtering_var_Fin
     )
-    filtering_Fin_checkbox.grid(column=0, row=2, sticky="w", padx=10, pady=10)
+    filtering_Fin_checkbox.grid(column=0, row=4, sticky="w", padx=10, pady=10)
 
     filtering_Lin_checkbox = ttk.Checkbutton(
         frame, text="Filtering (Lin)", variable=filtering_var_Lin
     )
-    filtering_Lin_checkbox.grid(column=0, row=3, sticky="w", padx=10, pady=10)
+    filtering_Lin_checkbox.grid(column=0, row=5, sticky="w", padx=10, pady=10)
 
     plots_checkbox = ttk.Checkbutton(frame, text="Em vs. Vm Plots", variable=plots_var)
-    plots_checkbox.grid(column=1, row=2, sticky="w", padx=10, pady=10)
+    plots_checkbox.grid(column=1, row=4, sticky="w", padx=10, pady=10)
 
     # Create and place the label and entry for filter strength
     filter_strength_label = ttk.Label(frame, text="Filter Strength:")
@@ -273,10 +355,11 @@ def main():
 
     # Create and place the button to open the files
     create_button = ttk.Button(frame, text="Open Files", command=select_files)
-    create_button.grid(column=1, row=3, columnspan=2, padx=10, pady=10)
+    create_button.grid(column=1, row=5, columnspan=2, padx=10, pady=10)
     root.bind("<Return>", select_files)
 
     # Run the tkinter main loop
+    root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()
 
     # Making the first folder for all of the files
@@ -294,8 +377,26 @@ def main():
 
     os.chdir(new_dir)
 
+    # Selecting the calibration file, to subtract f_in phaseshift from sample.
+    if is_calibrated:
+        try:
+            calibration_df = pd.read_csv(calibration_file["calibration_file"])
+
+        except FileNotFoundError:
+            showinfo(
+                title="Calibration File Not Found",
+                message="The selected calibration file could not be found, please check if it has moved locations and reselect.",
+            )
+            sys.exit()
+
+    # If the calibration file does not have exactly the same frequencies
+    # Sine_Strands will prevent any calibrations
+    aligned_freq = True  # must stay True
+
     # This is used to keep track if any files didn't have a cell area
+    # I'm using sets to stop any duplicate file names.
     no_cross_area = False
+    baselined_files = False
     cross_errors = {"Non-Scaled Files:": [], "Baselined_Files": []}
 
     # Keeping track of cell forces, for each file
@@ -326,11 +427,11 @@ def main():
             SL = 225
 
         # Looking for the conditions in the filename
-        if "treated" in filename.lower():
-            condition = "Treated"
-
-        elif "untreated" in filename.lower():
+        if "untreated" in filename.lower():
             condition = "Untreated"
+
+        elif "treated" in filename.lower():
+            condition = "Treated"
 
         else:
             condition = "None"
@@ -342,7 +443,7 @@ def main():
         # Else, if there is "100" in the filename, set 100 %
         # with Regex, the other option was to look for 2 or 3 digits in the filename,
         # but this caused names if there was also a different SL #
-        elif "100" in filename:
+        elif "100" in filename or "active" in filename.lower():
             pCa = pCa_dict["100"]
 
         else:
@@ -489,6 +590,8 @@ def main():
             "CrossArea": [],
             "Em (kPa)": [],
             "Vm (kPa)": [],
+            "Uncalibrated Em": [],
+            "Uncalibrated Vm": [],
         }
 
         # At this point in the script, the data is separated, indexes are reset,
@@ -533,6 +636,22 @@ def main():
             force_dict["Avg. Basal Force"].append(first_force)
             force_dict["Filename"].append(filename[:-4])
 
+        # Ensuring that the calibration file is ran at the same frequencies as the chosen data
+        if is_calibrated and calibration_df["Freq (Hz)"].equals(
+            combined_timing_df["Hz"]
+        ):
+            aligned_freq = True
+
+        elif is_calibrated:
+            showinfo(
+                title="Inproper Calibration File",
+                message="The calibration file selected has different frequencies than the chosen data. Please select a correct calibration file or run un-calibrated",
+            )
+            sys.exit()
+
+        # This is meant to stop adding a filename more than once per error output
+        added_this_file = False
+
         for freq in range(0, len(combined_timing_df)):
             end = int(
                 start + (combined_timing_df["Actual"].iloc[freq] * scaling_factor)
@@ -568,7 +687,7 @@ def main():
                 full_data_df = full_data_df.iloc[: -int(timing_difference)]
 
             # This here is from stack overflow, creating an array of numbers from 0 to the time of frequency, that has a length of the Timepoints.
-            # Basically making an array to copy the # of ms passed on the file
+            # making an array to copy the # of ms passed on the file
             x_data = numpy.linspace(
                 0, combined_timing_df.iat[freq, 2], len(full_data_df.Time)
             )
@@ -596,13 +715,15 @@ def main():
 
                 # Fit straight line to sinusoidal data (Lin should never have drift)
                 Fin_line = linregress(x_data, full_data_df.Fin)
+                Fin_slope = Fin_line.slope
                 y_vals = Fin_line.intercept + Fin_line.slope * x_data
 
-                # Subtract off baseline
-                baselined_Fin = full_data_df.Fin - y_vals
+                # Subtract off only the slope of the baseline
+                baselined_Fin = full_data_df.Fin - (Fin_slope * x_data)
 
                 # Try to refit
                 fin_res = fit_sin(x_data, baselined_Fin)
+
                 lin_res = fit_sin(x_data, full_data_df.Lin)
 
                 baselined_files = True
@@ -647,16 +768,30 @@ def main():
                 fin_amp = fin_res["amp"] / cross_area
 
             except TypeError:
-                # Need to add a thing that keeps track of non-scaled values
-                no_cross_area = True
-                fin_amp = fin_res["amp"]
-                cross_errors["Non-Scaled Files:"].append(filename)
+                if not added_this_file:  # Stops from adding a filename more than once
+                    no_cross_area = True
+                    added_this_file = True
+                    fin_amp = fin_res["amp"]
+                    cross_errors["Non-Scaled Files:"].append(filename)
 
-            # full_data_df.to_csv(f"Output_{combined_timing_df.iloc[freq, 0]}_Hz.csv")
-            norm_phase = fin_res["phase"] - lin_res["phase"]
+            # Subtracting out calibration phase shift (calibratio should be run with joined motor arm/force transducer)
+            if is_calibrated and aligned_freq:
+                norm_phase = fin_res["phase"] - (
+                    calibration_df.at[freq, "Fin_PhaseShift"]
+                    - calibration_df.at[freq, "Lin_PhaseShift"]
+                )
 
-            elastic_calc = (fin_amp / lin_res["amp"]) * numpy.cos(norm_phase)
-            viscous_calc = (fin_amp / lin_res["amp"]) * numpy.sin(norm_phase)
+                cal_elastic_calc = (-fin_amp / lin_res["amp"]) * numpy.cos(norm_phase)
+                cal_viscous_calc = (-fin_amp / lin_res["amp"]) * numpy.sin(norm_phase)
+
+            # Measuring the negative amplitude of force transducer, calculating elastic modulus and viscous modulus
+            elastic_calc = (-fin_amp / lin_res["amp"]) * numpy.cos(fin_res["phase"])
+            viscous_calc = (-fin_amp / lin_res["amp"]) * numpy.sin(fin_res["phase"])
+
+            # If there was no calibration, then the uncalibrated and regular Em/Vm are the same
+            if not is_calibrated:
+                cal_elastic_calc = elastic_calc
+                cal_viscous_calc = viscous_calc
 
             outputs["Freq (Hz)"].append(combined_timing_df.iloc[freq, 0])
             outputs["Fin_Amplitude"].append(fin_amp)
@@ -664,11 +799,12 @@ def main():
             outputs["Fin_PhaseShift"].append(fin_res["phase"])
             outputs["Lin_PhaseShift"].append(lin_res["phase"])
             outputs["CrossArea"].append(cross_area)
-            outputs["Em (kPa)"].append(elastic_calc)
-            outputs["Vm (kPa)"].append(viscous_calc)
+            outputs["Em (kPa)"].append(cal_elastic_calc)
+            outputs["Vm (kPa)"].append(cal_viscous_calc)
+            outputs["Uncalibrated Em"].append(elastic_calc)
+            outputs["Uncalibrated Vm"].append(viscous_calc)
 
-            # Remember! micro (u) sec not milli (m) sec
-            # print(start, end)
+            # making the new start point, by adding the spacing to the end.
             start = end + spacing
 
         # os.chdir("../")
@@ -724,7 +860,7 @@ def main():
                 allow_duplicates=True,
             )
 
-            # Adding HashCode (for MATLAB) Used "sinusoid" for the CRC32 HashCode 9efeb779 (random)
+            # Adding HashCode (for MATLAB) Used "sinusoid" for the CRC32B HashCode 9efeb779 (random)
             adding_df.insert(
                 0,
                 "HashCode",
@@ -804,13 +940,19 @@ def main():
             plt.close()
 
         summary_df.to_csv(f"{filename[:-4]}_Summary_Output.csv")
+
         os.chdir("../")
 
     # Making a summary csv file which contains the columns Freq (Hz), Em (kPa), and Vm (kPa)
     force_df = pd.DataFrame.from_dict(force_dict)
     try:
+        if is_calibrated:
+            output_suffix = "Calibrated_Data_Summary"
+        else:
+            output_suffix = "Data_Summary"
+
         # Save dfs as excel file
-        with pd.ExcelWriter(f"Full_Data_Summary-{folder_name.get()}.xlsx") as writer:
+        with pd.ExcelWriter(f"{output_suffix}-{folder_name.get()}.xlsx") as writer:
             # use to_excel function and specify the sheet_name and index
             # to store the dataframe in specified sheet
             concat_df.to_excel(
@@ -832,19 +974,35 @@ def main():
 
     # Saving filenames of files that didn't get scaled, if any exist
     if no_cross_area or baselined_files:
+
         with open(f"SineStrands_output.txt", "w") as f:
             f.write(json.dumps(cross_errors, indent=4))
 
-        showinfo(
-            title="Cell Area Missing",
-            message=f'Some files did not have cell measurements! Please check "SineStrands_output" for more details. ',
-        )
+        if no_cross_area and baselined_files:
+            showinfo(
+                title="Cell Area Missing & Baselined Files",
+                message=f'File(s) did not have cell measurements AND file(s) could not be fit (and therefore had had a baseline subtracted)! \n Please check "SineStrands_output" for more details. ',
+            )
+
+        elif no_cross_area:
+            showinfo(
+                title="Cell Area Missing",
+                message=f'File(s) did not have cell measurements! \n Please check "SineStrands_output" for more details. ',
+            )
+
+        elif baselined_files:
+            showinfo(
+                title="Baselined files",
+                message=f'File(s) could not be fit! A baseline fit was subtracted and the file was re-fit. \n Please check "SineStrands_output" for more details. ',
+            )
 
     print("All Done!")
     folder = os.getcwd()
 
     if sys.platform == "win32":
         os.startfile(folder)
+
+    # Mac or Linux call to open a folder.
     else:
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.call([opener, folder])
