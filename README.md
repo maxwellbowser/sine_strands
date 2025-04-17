@@ -32,11 +32,17 @@ KO Mouse ID # 4, Untreated, Active @ 86%, @ 200 SL
 WT Mouse ID # 988, Untreated, Active @ 72%, @ 225 SL  
 **SinusoidalPerturbationWT988Untreated72.dat**
 
-Please note that "SinusoidalPerturbation" is NOT required to be present, and can be swapped with any other text (so long as it does not include any of the other described file information)
-For example: 
-WT Mouse ID # 488, Untreated, Active @ 76%, @ 200 SL
-could have the filename:
-WT488Untreated76-200 OR SinusoidalPerturbationWT488Untreated76-200 OR SinePertWT488Untreated76-200 etc.
+Please note that "SinusoidalPerturbation" is NOT required to be present, and can be swapped with any other text (so long as it does not include any of the other described file information)  
+
+  
+For example:  
+WT Mouse ID # 488, Untreated, Active @ 76%, @ 200 SL  
+
+could have the following filenames:  
+1) SinusoidalPerturbationWT488Untreated76-200 
+2) SinePertWT488Untreated76-200   
+3) WT488Untreated76-200  
+4) **etc.**
 
 ## Sine_Strands Usage:  
 Using the compiled version of sine_strands, open the application "sine_strands" or double-click a shortcut linked to the "sine_strands" application file, located with the compiled files. (Found in "Releases" in zipped file)
