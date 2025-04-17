@@ -67,9 +67,11 @@ Please note that the "Uncalibrated" Vm/Em columns are identical to the other Em/
 
 #### Calibrated:  
 If you have a calibration file you'd like to use (which will subtract off any moduli, removing delay), you will need to first run the calibration file.
-Therefore, follow the above instructions for "simple" analysis using the calibration DAT recording and save the in-depth .CSV file (2nd Spreadsheet shown above). The sine_strands program will ONLY accept this .CSV file for calibration, to prevent users from accidentally inputting the summary file (which is .xlsx) for calibration. Sine_strands REQUIRES the in-depth data to properly calibrate sinusoidal input data.
+Therefore, follow the above instructions for "simple" analysis using the calibration DAT recording and save the in-depth .CSV file (2nd Spreadsheet shown above). The sine_strands program will ONLY accept this .CSV file for calibration, to prevent users from accidentally inputting the summary file (which is .xlsx) for calibration. Sine_strands REQUIRES the in-depth data to properly calibrate sinusoidal input data.  
 
-After you have analyzed the calibration file, you will re-open Sinestrands and click "Select" underneath "Calibration File" in the GUI. This will open a file selection window, where you can navigate to the calibration file and select it, then hit "Open".
+**Note:** Unless you added some sizes, you should get a little error pop-up which tell you you're missing size measurements for your cell. This just means sine_strands couldn't find dimensions for your cell, which is good because calibration files should not be run on cells.  
+
+After you have analyzed the calibration file, you will re-open Sinestrands and click "Select" underneath "Calibration File" in the GUI. This will open a file selection window, where you can navigate to the calibration file and select it, then hit "Open". (NOTE: You may get an error about "calibration file" not being found, please read the "IMPORTANT" section below)
 The file navigation window should now close, and you'll be presented with an updated GUI, which lists the calibration name under "Calibration File:"  
 **GUI Before selecting calibration file:**  
   
@@ -78,14 +80,66 @@ The file navigation window should now close, and you'll be presented with an upd
 **GUI After selecting calibration file:**  
   
 <img src="https://github.com/user-attachments/assets/eb13cdf4-be19-47b7-b819-330708b6f379" alt="SineStrands GUI" style="width:20%; height:auto;">  
+
+**IMPORTANT - FOR THE FIRST TIME ONLY:**  
+This selected calibration file is now selected, but the program must be reset before the file can be used. Therefore, close out sine_strands and relaunch. Now when you relaunch sine_strands, you should have the calibration file displayed. Sine_strands will remember this calibration file, so long as it does not change locations.
   
 Now you can follow the rest of the example above, where you'll put in a folder name and hit "Select Files", then select the files you'd like to analyze. **Please note that the calibrated file must have IDENTICAL frequency sweeps to the analyzed files.**  
+
+
 
 Once you have your calibrated summary file, you can continue onto the MATLAB analysis!  
   
 
 ## MATLAB Analysis Usage:  
 
+To preface this section, the MATLAB analysis requires more hands-on work with code files. BEWARE!! 👻  
+
+1) Start by copying/moving your output summary file from Sine_strands "Data_Summary-ExampleName" into your folder containing the MATLAB files.
+2) Open "analyze_Nyquist_plots" in MATLAB, which should give a view like this:
+<br>
+
+![image](https://github.com/user-attachments/assets/49a5319a-3f07-437a-b9cb-c5cb04935587)  
+
+<br>
+  
+3) Change the input_dir text on line #7 between the single quote marks (') to the path of your MATLAB folder where this "analyze_Nyquist_plots" file is located.  (You only have to do this once, unless you move this whole folder!!)
+
+4) Now, copy the name of your output file into the single quotes on line #10, changing filename to the name of your summary file from SineStrands (e.g. filename = 'Data_Summary-ExampleName.xlsx')
+4a) BE SURE TO ADD ".xlsx" to the end of the filename!
+
+5) Change "heart_sample" on line #18 to the mouse ID that you want to extract data from. The output from sinestrands always adds "Mouse" before the number, i.e. "Mouse04" or "Mouse988" would be the heart sample.
+
+6) Change to the "EDITOR" tab at the top, if you're not already there, then click "Run". This should output a few graphs and then automatically stop.
+<br>
+   
+![image](https://github.com/user-attachments/assets/dcde2bba-0add-4354-881d-c8f527e2c11a)  
+
+
+<br>
+
+
+8) For this sample, the output data will be created in the base folder, and the graphs will be saved to the "output" folder that is inside this folder.
+
+**Output excel file is created in base folder, graphs are placed in "output" folder:**  
+<br>
+
+
+<img src="https://github.com/user-attachments/assets/313e1224-e0bf-4bf3-b53c-dac0d07d4187" style="width:50%; height:auto;">   
+
+**Output data from MATLAB analysis:**  
+
+![image](https://github.com/user-attachments/assets/901a64bb-12b2-41dd-ad28-f1a07e69e827)  
+
+
+10)   To run the rest of the samples in the sinestrands file, move the output file to a new place (or it might get overwritten), thent change "heart_sample" to the next mouse ID # and hit run again.
+
+
+**Important:**  
+For the next file you analyze, you only need to change the name of the summary file on line #10, provided that you've copied the summary file into the folder with the MATLAB files.
+
+
+And that's it! From here, you can use the different curve fit metrics of the nyquest plot to describe how two tissues behave differently to mechancial forces.
 
 
 
