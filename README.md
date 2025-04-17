@@ -75,11 +75,11 @@ After you have analyzed the calibration file, you will re-open Sinestrands and c
 The file navigation window should now close, and you'll be presented with an updated GUI, which lists the calibration name under "Calibration File:"  
 **GUI Before selecting calibration file:**  
   
-<img src="https://github.com/user-attachments/assets/e8a43ce0-8f8f-4cdf-87a7-07fd0a8db99c" alt="SineStrands GUI" style="width:20%; height:auto;">
+<img src="https://github.com/user-attachments/assets/e8a43ce0-8f8f-4cdf-87a7-07fd0a8db99c" alt="SineStrands GUI" style="width:25%; height:auto;">
 
 **GUI After selecting calibration file:**  
   
-<img src="https://github.com/user-attachments/assets/eb13cdf4-be19-47b7-b819-330708b6f379" alt="SineStrands GUI" style="width:20%; height:auto;">  
+<img src="https://github.com/user-attachments/assets/eb13cdf4-be19-47b7-b819-330708b6f379" alt="SineStrands GUI" style="width:25%; height:auto;">  
 
 **IMPORTANT - FOR THE FIRST TIME ONLY:**  
 This selected calibration file is now selected, but the program must be reset before the file can be used. Therefore, close out sine_strands and relaunch. Now when you relaunch sine_strands, you should have the calibration file displayed. Sine_strands will remember this calibration file, so long as it does not change locations.
