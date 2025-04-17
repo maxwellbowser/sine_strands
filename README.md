@@ -132,7 +132,7 @@ To preface this section, the MATLAB analysis requires more hands-on work with co
 ![image](https://github.com/user-attachments/assets/901a64bb-12b2-41dd-ad28-f1a07e69e827)  
 
 
-10)   To run the rest of the samples in the sinestrands file, move the output file to a new place (or it might get overwritten), thent change "heart_sample" to the next mouse ID # and hit run again.
+10)   To run the rest of the samples in the sinestrands file, move the output file to a new place (or it might get overwritten), then change "heart_sample" to the next mouse ID # and hit run again.
 
 
 **Important:**  
